@@ -1,0 +1,17 @@
+{
+  "short_name": "AI Calculator",
+  "name": "Advanced AI Calculator",
+  "description": "An advanced calculator with a futuristic UI, featuring customizable themes, tax calculations, history, and AI-powered error correction using the Gemini API.",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#131827",
+  "background_color": "#0a0e17"
+}

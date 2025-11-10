@@ -1,0 +1,20 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <filter id="ai-glow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur in="SourceAlpha" stdDeviation="8" result="blur"/>
+            <feFlood flood-color="#4fc3f7" flood-opacity="0.7" result="floodColor"/>
+            <feComposite in="floodColor" in2="blur" operator="in" result="glow"/>
+            <feMerge>
+                <feMergeNode in="glow"/>
+                <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+        </filter>
+    </defs>
+    <g filter="url(#ai-glow)">
+        <path d="M256 128C189.8 128 137.8 175.4 128 236.4C120.2 288.6 156.4 336.8 204.4 353.2" stroke="#4fc3f7" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M256 384C322.2 384 374.2 336.6 384 275.6C391.8 223.4 355.6 175.2 307.6 158.8" stroke="#4fc3f7" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M204.4 158.8C156.4 175.2 120.2 223.4 128 275.6C137.8 336.6 189.8 384 256 384" stroke="#4fc3f7" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M307.6 353.2C355.6 336.8 391.8 288.6 384 236.4C374.2 175.4 322.2 128 256 128" stroke="#4fc3f7" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="256" cy="256" r="64" fill="#4fc3f7"/>
+    </g>
+</svg>
