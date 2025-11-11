@@ -34,23 +34,23 @@
     :root {
       /* --- Light Theme --- */
       --bg-primary-gradient: linear-gradient(135deg, #F0F4F8, #D9E2EC);
-      --bg-calculator: rgba(255, 255, 255, 0.75);
+      --bg-calculator: rgba(255, 255, 255, 0.7);
       --bg-display: #EDF2F7;
-      --bg-header: rgba(237, 242, 247, 0.6);
-      --bg-panel: rgba(255, 255, 255, 0.94);
+      --bg-header: rgba(237, 242, 247, 0.5);
+      --bg-panel: rgba(255, 255, 255, 0.95);
       --text-primary: #1A202C;
       --text-secondary: #4A5568;
       --text-display: #1A202C;
-      --border-primary: rgba(0, 0, 0, 0.1);
-      --border-secondary: rgba(0, 0, 0, 0.08);
-      --button-border-color: rgba(0, 0, 0, 0.1);
+      --border-primary: rgba(0, 0, 0, 0.08);
+      --border-secondary: rgba(0, 0, 0, 0.06);
+      --button-border-color: rgba(0, 0, 0, 0.08);
       --button-number-bg: linear-gradient(145deg, #E2E8F0, #FFFFFF);
       --button-function-bg: linear-gradient(145deg, #CBD5E0, #E2E8F0);
-      --button-number-shadow: 0 4px 8px rgba(0,0,0,0.08);
-      --button-number-active-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+      --button-number-shadow: 0 5px 10px rgba(0,0,0,0.08);
+      --button-number-active-shadow: inset 0 3px 5px rgba(0,0,0,0.1);
       --bg-inset: rgba(0, 0, 0, 0.05);
       --bg-inset-light: rgba(0, 0, 0, 0.03);
-      --calculator-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+      --calculator-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.2);
       --accent-color: #2B6CB0;
       --accent-color-contrast: #FFFFFF;
       --accent-equals-bg: linear-gradient(145deg, #38A169, #2F855A);
@@ -63,24 +63,25 @@
     .dark {
       /* --- Dark Theme --- */
       --bg-primary-gradient: linear-gradient(135deg, #0a0e17, #131827);
-      --bg-calculator: rgba(15, 25, 45, 0.85);
-      --bg-display: rgba(10, 20, 40, 0.92);
-      --bg-header: rgba(20, 35, 70, 0.6);
-      --bg-panel: rgba(20, 35, 70, 0.94);
+      --bg-calculator: rgba(15, 25, 45, 0.7);
+      --bg-display: rgba(10, 20, 40, 0.85);
+      --bg-header: rgba(20, 35, 70, 0.5);
+      --bg-panel: rgba(20, 35, 70, 0.95);
       --text-primary: #e3f2fd;
       --text-secondary: #bbdefb;
       --text-display: white;
-      --border-primary: rgba(80, 150, 255, 0.4);
-      --border-secondary: rgba(100, 180, 255, 0.3);
-      --button-border-color: rgba(80, 150, 255, 0.35);
+      --border-primary: rgba(80, 150, 255, 0.35);
+      --border-secondary: rgba(100, 180, 255, 0.25);
+      --button-border-color: rgba(80, 150, 255, 0.3);
       --button-number-bg: linear-gradient(145deg, rgba(30, 50, 85, 0.7), rgba(40, 65, 100, 0.8));
       --button-function-bg: linear-gradient(145deg, rgba(30, 55, 100, 0.8), rgba(45, 75, 120, 0.9));
-      --button-number-shadow: inset 0 -3px 7px rgba(0, 15, 40, 0.75), 0 3px 8px rgba(0, 10, 30, 0.4);
-      --button-number-active-shadow: inset 0 3px 7px rgba(0, 0, 0, 0.65), 0 1px 4px rgba(0, 0, 0, 0.35);
+      --button-number-shadow: inset 0 -3px 8px rgba(0, 15, 40, 0.8), 0 4px 10px rgba(0, 10, 30, 0.5), 0 0 1px rgba(100, 180, 255, 0.6);
+      --button-number-active-shadow: inset 0 4px 8px rgba(0, 0, 0, 0.7), 0 1px 4px rgba(0, 0, 0, 0.4);
       --bg-inset: rgba(20, 35, 70, 0.6);
       --bg-inset-light: rgba(30, 50, 90, 0.5);
-      --calculator-shadow: 0 0 40px rgba(60, 120, 255, 0.5), 0 25px 60px rgba(0, 0, 0, 0.6);
+      --calculator-shadow: 0 0 50px rgba(60, 120, 255, 0.35), 0 25px 60px rgba(0, 0, 0, 0.5);
       --accent-color: #4fc3f7;
+      --button-function-text-color: #f075ff;
       --accent-color-contrast: #000000;
       --display-text-shadow: 0 0 14px rgba(100, 180, 255, 0.6);
     }
@@ -353,30 +354,34 @@ Respond ONLY with a valid JSON object with two keys: "fix" (the corrected expres
 
     // --- Inlined: hooks/useCalculator.ts ---
     const defaultButtonLayout = [
-      { id: 'ac', label: 'AC', action: 'clear', type: 'function' },
-      { id: 'backspace', label: '←', action: 'backspace', type: 'function' },
-      { id: 'ans', label: 'Ans', action: 'appendAnswer', type: 'function' },
-      { id: 'percent', label: '%', value: '%', type: 'function' },
-      { id: 'divide', label: '÷', value: '÷', type: 'operator' },
-      { id: '7', label: '7', value: '7', type: 'number' },
-      { id: '8', label: '8', value: '8', type: 'number' },
-      { id: '9', label: '9', value: '9', type: 'number' },
-      { id: 'sign', label: '±', action: 'toggleSign', type: 'function' },
-      { id: 'multiply', label: '×', value: '×', type: 'operator' },
-      { id: '4', label: '4', value: '4', type: 'number' },
-      { id: '5', label: '5', value: '5', type: 'number' },
-      { id: '6', label: '6', value: '6', type: 'number' },
-      { id: 'paren', label: '( )', action: 'parenthesis', type: 'operator' },
-      { id: 'subtract', label: '-', value: '-', type: 'operator' },
-      { id: '1', label: '1', value: '1', type: 'number' },
-      { id: '2', label: '2', value: '2', type: 'number' },
-      { id: '3', label: '3', value: '3', type: 'number' },
-      { id: 'decimal', label: '.', value: '.', type: 'number' },
-      { id: 'add', label: '+', value: '+', type: 'operator' },
-      { id: '0', label: '0', value: '0', type: 'number' },
-      { id: '00', label: '00', value: '00', type: 'number' },
-      { id: '000', label: '000', value: '000', type: 'number' },
-      { id: 'equals', label: '=', action: 'calculate', type: 'equals', span: 2 },
+        { id: 'divide', label: '÷', value: '÷', type: 'operator' },
+        { id: 'percent', label: '%', value: '%', type: 'function' },
+        { id: 'ans', label: 'Ans', action: 'appendAnswer', type: 'function' },
+        { id: 'backspace', label: '←', action: 'backspace', type: 'function' },
+        { id: 'ac', label: 'AC', action: 'clear', type: 'function' },
+    
+        { id: 'multiply', label: '×', value: '×', type: 'operator' },
+        { id: 'sign', label: '±', action: 'toggleSign', type: 'function' },
+        { id: '9', label: '9', value: '9', type: 'number' },
+        { id: '8', label: '8', value: '8', type: 'number' },
+        { id: '7', label: '7', value: '7', type: 'number' },
+        
+        { id: 'subtract', label: '-', value: '-', type: 'operator' },
+        { id: 'paren', label: '( )', action: 'parenthesis', type: 'function' },
+        { id: '6', label: '6', value: '6', type: 'number' },
+        { id: '5', label: '5', value: '5', type: 'number' },
+        { id: '4', label: '4', value: '4', type: 'number' },
+        
+        { id: 'add', label: '+', value: '+', type: 'operator' },
+        { id: 'decimal', label: '.', value: '.', type: 'number' },
+        { id: '3', label: '3', value: '3', type: 'number' },
+        { id: '2', label: '2', value: '2', type: 'number' },
+        { id: '1', label: '1', value: '1', type: 'number' },
+        
+        { id: 'equals', label: '=', action: 'calculate', type: 'equals', span: 2 },
+        { id: '000', label: '000', value: '000', type: 'number' },
+        { id: '00', label: '00', value: '00', type: 'number' },
+        { id: '0', label: '0', value: '0', type: 'number' },
     ];
     const useLocalStorage = (key, initialValue) => {
       const [storedValue, setStoredValue] = useState(() => {
@@ -417,7 +422,7 @@ Respond ONLY with a valid JSON object with two keys: "fix" (the corrected expres
       const [vibrationEnabled, setVibrationEnabled] = useLocalStorage('calcVibration', true);
       const [taxSettings, setTaxSettings] = useLocalStorage('calcTaxSettings_v2', { isEnabled: false, mode: 'add-15', rate: 15, showTaxPerNumber: false });
       const [maxHistory, setMaxHistory] = useLocalStorage('calcMaxHistory', 50);
-      const [buttonLayout, setButtonLayout] = useLocalStorage('calcButtonLayout_v8', defaultButtonLayout);
+      const [buttonLayout, setButtonLayout] = useLocalStorage('calcButtonLayout_v10', defaultButtonLayout);
       const [calculationExecuted, setCalculationExecuted] = useState(false);
       const [error, setError] = useState(null); // Can be { message: string, details: object | null }
       const [aiSuggestion, setAiSuggestion] = useState(null);
@@ -663,13 +668,25 @@ Respond ONLY with a valid JSON object with two keys: "fix" (the corrected expres
       };
     };
 
+    // --- Inlined: components/Icon.tsx ---
+    const Icon = ({ name, className = "w-6 h-6" }) => {
+        const icons = {
+            settings: React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "2", d: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" }),
+            history: React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "2", d: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" }),
+            share: React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "2", d: "M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8m-4-6l-4-4m0 0L8 8m4-4v12" }),
+            backspace: React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "2", d: "M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 002.828 0L21 9.657A2 2 0 0021 7V5a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2h8" }),
+        };
+        const centerCircle = name === 'settings' ? React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "2", d: "M15 12a3 3 0 11-6 0 3 3 0 016 0z" }) : null;
+        return React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", className, fill: "none", viewBox: "0 0 24 24", stroke: "currentColor" }, icons[name], centerCircle);
+    };
+
     // --- Inlined: components/Button.tsx ---
     const Button = ({ children, onClick, className = '', style = {} }) => {
       return (
         React.createElement('button', {
           onClick: onClick,
           style: style,
-          className: `border border-[var(--button-border-color)] py-4 text-2xl rounded-2xl cursor-pointer transition-all duration-100 text-center select-none shadow-[var(--button-number-shadow)] active:transform active:scale-[0.95] active:shadow-[var(--button-number-active-shadow)] active:brightness-95 ${className}`,
+          className: `border border-[var(--button-border-color)] py-4 text-2xl rounded-2xl cursor-pointer transition-all duration-100 flex items-center justify-center select-none shadow-[var(--button-number-shadow)] active:transform active:scale-[0.95] active:shadow-[var(--button-number-active-shadow)] active:brightness-95 ${className}`,
         }, React.createElement('span', { style: { textShadow: 'var(--button-text-shadow, none)' } }, children))
       );
     };
@@ -710,9 +727,18 @@ Respond ONLY with a valid JSON object with two keys: "fix" (the corrected expres
           default: return `${displayRate}%`;
         }
       };
+      
+      const HeaderButton = ({ onClick, children, 'aria-label': ariaLabel }) => (
+        React.createElement('button', {
+            onClick: onClick,
+            'aria-label': ariaLabel,
+            className: "w-12 h-12 flex items-center justify-center rounded-2xl bg-[var(--bg-inset)] text-[var(--text-secondary)] transition-colors duration-200 hover:bg-[var(--bg-inset-light)] hover:text-[var(--text-primary)]"
+        }, children)
+      );
+
       return (
-        React.createElement('div', { className: "flex justify-between items-center p-2.5 rounded-2xl mb-4 bg-[var(--bg-header)] border border-[var(--border-primary)] backdrop-blur-sm" },
-          React.createElement(Button, { onClick: onShare, className: "!p-1.5 !text-lg !min-w-[45px] !rounded-xl bg-[var(--bg-inset)] !text-[var(--text-secondary)]" }, "📤"),
+        React.createElement('div', { className: "flex justify-between items-center p-3 rounded-3xl mb-4 bg-[var(--bg-header)] border border-[var(--border-primary)] backdrop-blur-sm" },
+          React.createElement(HeaderButton, { onClick: onShare, 'aria-label': "مشاركة النتيجة" }, React.createElement(Icon, { name: 'share' })),
           
           React.createElement('div', { className: "flex items-center gap-2" },
             React.createElement('div', { className: `text-sm py-1 px-2.5 rounded-xl bg-[var(--bg-inset)] text-[var(--text-secondary)] whitespace-nowrap transition-opacity duration-300 ${isEnabled ? 'opacity-100' : 'opacity-60'}` },
@@ -725,10 +751,10 @@ Respond ONLY with a valid JSON object with two keys: "fix" (the corrected expres
 
           React.createElement('div', { className: "flex items-center gap-2" },
             React.createElement('div', { className: "relative" },
-              React.createElement(Button, { onClick: onToggleHistory, className: "!p-1.5 !text-lg !min-w-[45px] !rounded-xl bg-[var(--bg-inset)] text-[var(--text-secondary)]" }, "📜"),
+              React.createElement(HeaderButton, { onClick: onToggleHistory, 'aria-label': "فتح السجل" }, React.createElement(Icon, { name: 'history' })),
               historyCount > 0 && React.createElement('span', { className: "absolute -top-1 -right-1.5 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center pointer-events-none" }, historyCount > 99 ? '99+' : historyCount)
             ),
-            React.createElement(Button, { onClick: onToggleSettings, className: "!p-1.5 !text-lg !min-w-[45px] !rounded-xl bg-[var(--bg-inset)] text-[var(--text-primary)]" }, "⚙️")
+            React.createElement(HeaderButton, { onClick: onToggleSettings, 'aria-label': "فتح الإعدادات" }, React.createElement(Icon, { name: 'settings' }))
           )
         )
       );
@@ -917,7 +943,7 @@ Respond ONLY with a valid JSON object with two keys: "fix" (the corrected expres
 
 
     // --- Inlined: components/ButtonGrid.tsx ---
-    const ButtonGrid = ({ onAppend, onClear, onBackspace, onCalculate, onToggleSign, onParenthesis, onToggleHistory, onAppendAnswer, layout }) => {
+    const ButtonGrid = ({ onAppend, onClear, onBackspace, onCalculate, onToggleSign, onParenthesis, onAppendAnswer, layout }) => {
       return (
         React.createElement('div', { className: "grid grid-cols-5 gap-3" },
           layout.map((btn) => {
@@ -927,7 +953,6 @@ Respond ONLY with a valid JSON object with two keys: "fix" (the corrected expres
               else if (btn.action === 'calculate') onCalculate();
               else if (btn.action === 'toggleSign') onToggleSign();
               else if (btn.action === 'parenthesis') onParenthesis();
-              else if (btn.action === 'toggleHistory') onToggleHistory();
               else if (btn.action === 'appendAnswer') onAppendAnswer();
               else if (btn.value) onAppend(btn.value);
             };
@@ -939,12 +964,7 @@ Respond ONLY with a valid JSON object with two keys: "fix" (the corrected expres
             }
             if (btn.type === 'operator' || btn.type === 'function') {
                 style.background = 'var(--button-function-bg)';
-                style.color = 'var(--button-text-color-custom, var(--accent-color))';
-            }
-            if (btn.type === 'history') {
-                style.background = 'var(--button-function-bg)';
-                style.color = 'var(--text-secondary)';
-                className += ' !text-base';
+                style.color = 'var(--button-text-color-custom, var(--button-function-text-color, var(--accent-color)))';
             }
             if (btn.type === 'equals') {
                 style.background = 'var(--accent-equals-bg)';
@@ -960,7 +980,7 @@ Respond ONLY with a valid JSON object with two keys: "fix" (the corrected expres
                 className: className,
                 style: style,
               },
-                btn.label
+                btn.icon ? React.createElement(Icon, { name: btn.icon, className: 'w-7 h-7' }) : btn.label
               )
             );
           })
@@ -1039,7 +1059,6 @@ Respond ONLY with a valid JSON object with two keys: "fix" (the corrected expres
               onCalculate: actions.calculate,
               onToggleSign: actions.toggleSign,
               onParenthesis: actions.handleParenthesis,
-              onToggleHistory: onToggleHistory,
               onAppendAnswer: actions.appendAnswer,
               layout: calculator.settings.buttonLayout,
             })
@@ -1324,7 +1343,7 @@ Respond ONLY with a valid JSON object with two keys: "fix" (the corrected expres
               )
           ),
           React.createElement('div', { className: "text-center text-sm text-gray-400 dark:text-gray-500" },
-            "الإصدار 1.6.0 © 2025"
+            "الإصدار 1.7.0 © 2025"
           )
         )
       );
