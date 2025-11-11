@@ -626,6 +626,9 @@ Respond ONLY with a valid JSON object with two keys: "fix" (the corrected expres
         vibrate(50);
         setHistory([]);
       }, [setHistory, vibrationEnabled]);
+      const deleteHistoryItem = useCallback((id) => {
+        setHistory(prevHistory => prevHistory.filter(item => item.id !== id));
+      }, [setHistory]);
       const loadFromHistory = useCallback((expression) => {
         setInput(expression);
         setCalculationExecuted(false);
@@ -655,7 +658,7 @@ Respond ONLY with a valid JSON object with two keys: "fix" (the corrected expres
           taxSettings, setTaxSettings, maxHistory, setMaxHistory, buttonLayout
         },
         actions: {
-          append, clearAll, backspace, calculate, toggleSign, handleParenthesis, appendAnswer, applyAiFix, clearHistory, loadFromHistory, updateInput, updateHistoryItemNote
+          append, clearAll, backspace, calculate, toggleSign, handleParenthesis, appendAnswer, applyAiFix, clearHistory, deleteHistoryItem, loadFromHistory, updateInput, updateHistoryItemNote
         }
       };
     };
@@ -1172,7 +1175,7 @@ Respond ONLY with a valid JSON object with two keys: "fix" (the corrected expres
 
 
     // --- Inlined: components/HistoryPanel.tsx ---
-    const HistoryPanel = ({ isOpen, onClose, history, onClearHistory, onHistoryItemClick, onExportHistory, onExportCsvHistory, onUpdateHistoryItemNote }) => {
+    const HistoryPanel = ({ isOpen, onClose, history, onClearHistory, onHistoryItemClick, onExportHistory, onExportCsvHistory, onUpdateHistoryItemNote, onDeleteItem }) => {
       const [startDate, setStartDate] = useState('');
       const [endDate, setEndDate] = useState('');
       const [searchTerm, setSearchTerm] = useState('');
@@ -1249,11 +1252,18 @@ Respond ONLY with a valid JSON object with two keys: "fix" (the corrected expres
                             )
                         )
                     ) : (
-                        React.createElement('div', { className: "mt-2 flex justify-between items-start" },
+                        React.createElement('div', { className: "mt-2 flex justify-between items-center" },
                             item.notes ?
-                                React.createElement('p', { className: "text-sm text-[var(--text-secondary)] italic pr-2 break-all" }, `"${item.notes}"`) :
-                                React.createElement('div', null),
-                            React.createElement('button', { onClick: () => setEditingItem({ id: item.id, note: item.notes || '' }), className: "text-xs text-[var(--accent-color)] hover:underline whitespace-nowrap" }, item.notes ? "تعديل" : "إضافة ملاحظة")
+                                React.createElement('p', { className: "text-sm text-[var(--text-secondary)] italic pr-2 break-all flex-grow" }, `"${item.notes}"`) :
+                                React.createElement('div', { className: "flex-grow" }),
+                             React.createElement('div', { className: "flex items-center gap-2 flex-shrink-0" },
+                                React.createElement('button', { onClick: () => setEditingItem({ id: item.id, note: item.notes || '' }), className: "text-xs text-[var(--accent-color)] hover:underline whitespace-nowrap" }, item.notes ? "تعديل" : "إضافة ملاحظة"),
+                                React.createElement('button', {
+                                    onClick: () => onDeleteItem(item),
+                                    'aria-label': `حذف ${item.expression}`,
+                                    className: "text-lg text-red-500/70 hover:text-red-500 transition-colors"
+                                }, "🗑️")
+                             )
                         )
                     )
                   )
@@ -1302,16 +1312,19 @@ Respond ONLY with a valid JSON object with two keys: "fix" (the corrected expres
             React.createElement('button', { onClick: onClose, className: "text-2xl text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors" }, "✕")
           ),
           React.createElement('div', { className: "bg-[var(--bg-inset-light)] rounded-2xl p-4 mb-6 border border-[var(--border-secondary)]" },
-            React.createElement('p', { className: "text-[var(--text-secondary)] leading-relaxed text-base" },
-              "الآلة الحاسبة المتقدمة هي أداة حساب من الجيل التالي، مصممة للدقة وسهولة الاستخدام. تتميز بواجهة حديثة قابلة للتخصيص مع أوضاع فاتحة وداكنة.",
-              React.createElement('br'), React.createElement('br'),
-              "تقوم الآلة الحاسبة بتصحيح الأخطاء في تعبيراتك الرياضية بذكاء، محولة الأخطاء إلى فرص للتعلم.",
-              React.createElement('br'), React.createElement('br'),
-              "مع ميزات قوية مثل حساب الضرائب، وسجل عمليات دائم، والتركيز على تجربة مستخدم نظيفة، تهدف هذه الآلة الحاسبة إلى أن تكون الوحيدة التي ستحتاج إليها على الإطلاق."
-            )
+              React.createElement('p', { className: "text-[var(--text-secondary)] leading-relaxed text-base font-semibold text-center mb-4" }, "مرحباً بك في مستقبل الحسابات!"),
+              React.createElement('p', { className: "text-[var(--text-secondary)] leading-relaxed text-base mb-4" }, "هذه ليست مجرد آلة حاسبة، بل هي مساعدك الذكي المصمم لجعل الأرقام تعمل من أجلك."),
+              React.createElement('h4', { className: "text-[var(--text-primary)] font-bold mb-2" }, "أبرز الميزات:"),
+              React.createElement('ul', { className: 'list-disc list-inside space-y-2 text-[var(--text-secondary)]' },
+                  React.createElement('li', null, React.createElement('strong', { className: "text-[var(--text-primary)]" }, "🧠 تصحيح ذكي:"), " مدعومة من Gemini AI، تقوم الآلة الحاسبة تلقائياً باكتشاف الأخطاء وتقديم إصلاحات فورية."),
+                  React.createElement('li', null, React.createElement('strong', { className: "text-[var(--text-primary)]" }, "💰 حسابات ضريبية متقدمة:"), " أوضاع ضريبية قابلة للتخصيص بالكامل، سواء لإضافة ضريبة القيمة المضافة أو استخلاصها."),
+                  React.createElement('li', null, React.createElement('strong', { className: "text-[var(--text-primary)]" }, "📜 سجل شامل:"), " لا تفقد أي عملية مرة أخرى. أضف ملاحظات، وصدّر بياناتك كملفات TXT أو CSV."),
+                  React.createElement('li', null, React.createElement('strong', { className: "text-[var(--text-primary)]" }, "🎨 تخصيص عميق:"), " اختر بين المظاهر، غيّر الخطوط، وحتى لون نص الأزرار."),
+                  React.createElement('li', null, React.createElement('strong', { className: "text-[var(--text-primary)]" }, "🌐 تطبيق ويب تقدمي (PWA):"), " ثبّت الآلة الحاسبة على جهازك واستخدمها بدون اتصال بالإنترنت.")
+              )
           ),
           React.createElement('div', { className: "text-center text-sm text-gray-400 dark:text-gray-500" },
-            "الإصدار 1.5.0 © 2025"
+            "الإصدار 1.6.0 © 2025"
           )
         )
       );
@@ -1331,7 +1344,7 @@ Respond ONLY with a valid JSON object with two keys: "fix" (the corrected expres
             "aria-describedby": "dialog-message"
           },
             React.createElement('h3', { id: "dialog-title", className: "text-[var(--accent-color)] text-2xl font-bold mb-4" }, title),
-            React.createElement('p', { id: "dialog-message", className: "text-[var(--text-secondary)] mb-6 text-base leading-relaxed" }, message),
+            React.createElement('p', { id: "dialog-message", className: "text-[var(--text-secondary)] mb-6 text-base leading-relaxed break-words" }, message),
             React.createElement('div', { className: "flex justify-end gap-3" },
               React.createElement('button', {
                 onClick: onCancel,
@@ -1340,7 +1353,7 @@ Respond ONLY with a valid JSON object with two keys: "fix" (the corrected expres
               React.createElement('button', {
                 onClick: onConfirm,
                 className: "py-2 px-6 rounded-xl bg-red-600 text-white font-bold shadow-lg hover:bg-red-700 transition-colors"
-              }, "تأكيد المسح")
+              }, "تأكيد")
             )
           )
         )
@@ -1470,6 +1483,22 @@ Respond ONLY with a valid JSON object with two keys: "fix" (the corrected expres
             }
         });
       }, [calculator.history, calculator.actions.clearHistory, showNotification]);
+      
+      const handleDeleteHistoryItem = useCallback((item) => {
+        setConfirmation({
+            isOpen: true,
+            title: 'حذف العملية',
+            message: `هل أنت متأكد من حذف العملية: "${item.expression} = ${item.result}"؟ لا يمكن التراجع عن هذا الإجراء.`,
+            onConfirm: () => {
+                calculator.actions.deleteHistoryItem(item.id);
+                setConfirmation({ isOpen: false });
+                showNotification("تم حذف العملية بنجاح.");
+            },
+            onCancel: () => {
+                setConfirmation({ isOpen: false });
+            }
+        });
+      }, [calculator.actions.deleteHistoryItem, showNotification]);
 
       const onCheckForUpdates = useCallback(() => {
         if (appUpdate.registration) {
@@ -1619,7 +1648,8 @@ Respond ONLY with a valid JSON object with two keys: "fix" (the corrected expres
             },
             onExportHistory: (start, end) => handleExport('txt', start, end),
             onExportCsvHistory: (start, end) => handleExport('csv', start, end),
-            onUpdateHistoryItemNote: calculator.actions.updateHistoryItemNote
+            onUpdateHistoryItemNote: calculator.actions.updateHistoryItemNote,
+            onDeleteItem: handleDeleteHistoryItem
           }),
           React.createElement(SupportPanel, { isOpen: isSupportOpen, onClose: closeAllPanels }),
           React.createElement(AboutPanel, { isOpen: isAboutOpen, onClose: closeAllPanels }),
