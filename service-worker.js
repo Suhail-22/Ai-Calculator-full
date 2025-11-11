@@ -1,10 +1,11 @@
-const CACHE_NAME = 'ai-calculator-cache-v11'; // Incremented version to trigger update
+const CACHE_NAME = 'ai-calculator-cache-v12'; // Incremented version to trigger update
 const urlsToCache = [
   // Core local files
   './',
   './index.html',
   './manifest.json',
   './icon.svg',
+  './maskable-icon.svg',
 
   // External Libraries (The key to making it work offline)
   'https://cdn.tailwindcss.com',
