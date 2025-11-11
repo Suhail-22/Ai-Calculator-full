@@ -7,11 +7,57 @@
       "src": "icon.svg",
       "type": "image/svg+xml",
       "sizes": "any",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
       "purpose": "any maskable"
     }
   ],
   "start_url": ".",
   "display": "standalone",
+  "orientation": "portrait-primary",
   "theme_color": "#131827",
-  "background_color": "#0a0e17"
+  "background_color": "#0a0e17",
+  "scope": "/",
+  "shortcuts": [
+    {
+      "name": "حساب جديد",
+      "short_name": "جديد",
+      "description": "بدء عملية حسابية جديدة",
+      "url": "/",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "عرض السجل",
+      "short_name": "السجل",
+      "description": "عرض سجل العمليات الحسابية",
+      "url": "/?history=true",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "screenshot1.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "الواجهة الرئيسية للآلة الحاسبة"
+    },
+    {
+      "src": "screenshot2.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "عرض سجل العمليات"
+    }
+  ]
 }

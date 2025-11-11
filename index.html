@@ -21,7 +21,8 @@
       "react-dom/client": "https://aistudiocdn.com/react-dom@^19.2.0/client",
       "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
       "react/": "https://aistudiocdn.com/react@^19.2.0/",
-      "react": "https://aistudiocdn.com/react@^19.2.0"
+      "react": "https://aistudiocdn.com/react@^19.2.0",
+      "@google/genai": "https://esm.run/@google/genai"
     }
   }
   </script>
@@ -133,6 +134,7 @@
     // --- Library Imports ---
     import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
     import ReactDOM from 'react-dom/client';
+    import { GoogleGenAI, Type } from '@google/genai';
 
     // --- Inlined: services/calculationEngine.ts ---
     function parseExpression(expr) {
@@ -220,6 +222,50 @@
         }
         if (stack.length !== 1) throw new Error('تعبير غير صالح');
         return stack[0];
+    }
+
+
+    // --- Inlined: services/geminiService.ts ---
+    async function getAiFix(expression, errorMessage) {
+      if (!process.env.API_KEY) {
+        console.log("API_KEY environment variable not set. Skipping Gemini call.");
+        return null;
+      }
+      try {
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const prompt = `Correct the following mathematical expression which caused an error.
+Provide a brief, one-sentence explanation in Arabic about the error.
+Expression: "${expression}"
+Error: "${errorMessage}"
+Respond ONLY with a valid JSON object with two keys: "fix" (the corrected expression) and "message" (the explanation in Arabic).`;
+
+        const response = await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: prompt,
+          config: {
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                fix: { type: Type.STRING },
+                message: { type: Type.STRING }
+              },
+              required: ['fix', 'message']
+            }
+          }
+        });
+
+        const jsonString = response.text.trim();
+        const result = JSON.parse(jsonString);
+
+        if (result.fix && result.message) {
+          return { fix: result.fix, message: `💡 ${result.message}` };
+        }
+        return null;
+      } catch (error) {
+        console.error("Gemini API Error:", error);
+        return null;
+      }
     }
 
 
@@ -336,7 +382,18 @@
       const [storedValue, setStoredValue] = useState(() => {
         try {
           const item = window.localStorage.getItem(key);
-          return item ? JSON.parse(item) : initialValue;
+          const parsed = item ? JSON.parse(item) : initialValue;
+          // Migration for history items to add id and notes
+          if (key === 'calcHistory_v2' && Array.isArray(parsed) && parsed.length > 0 && !parsed[0].id) {
+              const migrated = parsed.map((histItem, index) => ({
+                  ...histItem,
+                  id: Date.now() - index,
+                  notes: '',
+              }));
+              window.localStorage.setItem(key, JSON.stringify(migrated));
+              return migrated;
+          }
+          return parsed;
         } catch (error) {
           console.error(error);
           return initialValue;
@@ -371,6 +428,13 @@
           const numbers = input.match(/\d+(\.\d+)?/g);
           return numbers ? numbers.length : 0;
       }, [input, calculationExecuted]);
+      
+      useEffect(() => {
+        const validModes = ['add-15', 'divide-93', 'custom', 'extract-custom'];
+        if (taxSettings.isEnabled && !validModes.includes(taxSettings.mode)) {
+          setTaxSettings(prev => ({...prev, mode: 'add-15'}));
+        }
+      }, [taxSettings, setTaxSettings]);
 
       const vibrate = (duration = 30) => {
         if (vibrationEnabled && navigator.vibrate) {
@@ -477,7 +541,7 @@
             return prev + lastAnswer;
         });
       }, [lastAnswer, calculationExecuted, vibrationEnabled]);
-      const calculate = useCallback(() => {
+      const calculate = useCallback(async () => {
         vibrate(70);
         setError(null);
         setAiSuggestion(null);
@@ -494,14 +558,10 @@
           const now = new Date();
           
           let taxResultValue = null;
-          let effectiveTaxRate = taxSettings.rate;
+          let effectiveTaxRate = parseFloat(taxSettings.rate) || 0;
           
           if (taxSettings.isEnabled) {
               switch(taxSettings.mode) {
-                  case 'add-7':
-                      taxResultValue = result * (1 + 7 / 100);
-                      effectiveTaxRate = 7;
-                      break;
                   case 'add-15':
                       taxResultValue = result * (1 + 15 / 100);
                       effectiveTaxRate = 15;
@@ -509,40 +569,50 @@
                   case 'custom':
                       taxResultValue = result * (1 + effectiveTaxRate / 100);
                       break;
+                  case 'extract-custom':
+                      taxResultValue = result / (1 + effectiveTaxRate / 100);
+                      break;
                   case 'divide-93':
                       taxResultValue = result / 0.93;
-                      break;
-                  case 'add-fixed':
-                      taxResultValue = result + effectiveTaxRate; // Re-using rate for fixed amount
-                      break;
-                  case 'subtract-fixed':
-                      taxResultValue = result - effectiveTaxRate; // Re-using rate for fixed amount
                       break;
               }
           }
 
           const taxResult = taxResultValue ? taxResultValue.toLocaleString('en-US', {maximumFractionDigits: 10, useGrouping: false}) : null;
+          const taxLabel = taxSettings.mode === 'extract-custom' ? 'الأصل بدون ضريبة' : 'الإجمالي مع الضريبة';
           
           const newItem = {
+            id: Date.now(),
             expression: expression,
             result: resultStr,
             taxResult: taxResult,
             taxMode: taxSettings.isEnabled ? taxSettings.mode : null,
             taxRate: taxSettings.isEnabled ? effectiveTaxRate : null,
+            taxLabel: taxSettings.isEnabled ? taxLabel : null,
             date: now.toLocaleDateString('ar-EG', { year: 'numeric', month: '2-digit', day: '2-digit' }),
-            time: now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
+            time: now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
+            notes: ''
           };
           setHistory([newItem, ...history].slice(0, maxHistory));
           setInput(resultStr);
           setCalculationExecuted(true);
         } catch (e) {
-          const errorMessage = e.message || 'خطأ غير معروف';
-          setError({ message: errorMessage, details: findErrorDetails(expression, errorMessage) });
-          setCalculationExecuted(false);
-          const suggestion = getLocalFix(expression);
-          if (suggestion && suggestion.fix) {
-            setAiSuggestion(suggestion);
-          }
+            const errorMessage = e.message || 'خطأ غير معروف';
+            setError({ message: errorMessage, details: findErrorDetails(expression, errorMessage) });
+            setCalculationExecuted(false);
+            setAiSuggestion({ message: 'جاري البحث عن حل ذكي...', fix: null, isLoading: true });
+
+            const geminiFix = await getAiFix(expression, errorMessage);
+            if (geminiFix && geminiFix.fix) {
+                setAiSuggestion({ ...geminiFix, isLoading: false });
+            } else {
+                const localFix = getLocalFix(expression);
+                if (localFix && localFix.fix) {
+                    setAiSuggestion({ ...localFix, isLoading: false });
+                } else {
+                    setAiSuggestion(null); // No fix found, clear loading state
+                }
+            }
         }
       }, [input, taxSettings, history, setHistory, vibrationEnabled, maxHistory, setLastAnswer]);
       const applyAiFix = useCallback(() => {
@@ -553,11 +623,9 @@
         }
       }, [aiSuggestion]);
       const clearHistory = useCallback(() => {
-        if (history.length > 0 && window.confirm("هل أنت متأكد أنك تريد مسح السجل بالكامل؟ لا يمكن التراجع عن هذا الإجراء.")) {
-            vibrate(50);
-            setHistory([]);
-        }
-      }, [setHistory, vibrationEnabled, history.length]);
+        vibrate(50);
+        setHistory([]);
+      }, [setHistory, vibrationEnabled]);
       const loadFromHistory = useCallback((expression) => {
         setInput(expression);
         setCalculationExecuted(false);
@@ -572,6 +640,13 @@
         }
         setInput(value === '' ? '0' : value);
       }, [calculationExecuted]);
+      const updateHistoryItemNote = useCallback((id, note) => {
+          setHistory(prevHistory => 
+              prevHistory.map(item =>
+                  item.id === id ? { ...item, notes: note } : item
+              )
+          );
+      }, [setHistory]);
       
       return {
         input, history, error, aiSuggestion, isCalculationExecuted: calculationExecuted, entryCount,
@@ -580,7 +655,7 @@
           taxSettings, setTaxSettings, maxHistory, setMaxHistory, buttonLayout
         },
         actions: {
-          append, clearAll, backspace, calculate, toggleSign, handleParenthesis, appendAnswer, applyAiFix, clearHistory, loadFromHistory, updateInput
+          append, clearAll, backspace, calculate, toggleSign, handleParenthesis, appendAnswer, applyAiFix, clearHistory, loadFromHistory, updateInput, updateHistoryItemNote
         }
       };
     };
@@ -598,11 +673,11 @@
 
 
     // --- Inlined: components/Overlay.tsx ---
-    const Overlay = ({ show, onClick }) => {
+    const Overlay = ({ show, onClick, zIndex = 'z-40' }) => {
       return (
         React.createElement('div', {
           onClick: onClick,
-          className: `fixed inset-0 bg-black/70 z-40 transition-opacity duration-300 ${show ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`
+          className: `fixed inset-0 bg-black/70 transition-opacity duration-300 ${show ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'} ${zIndex}`
         })
       );
     };
@@ -623,14 +698,13 @@
       const { isEnabled, rate, mode } = taxSettings;
       const getTaxRateLabel = () => {
         if (!isEnabled) return '---';
+        const displayRate = parseFloat(rate) || 0;
         switch (mode) {
-          case 'add-7': return '7%';
-          case 'add-15': return '15%';
+          case 'add-15': return '+15%';
           case 'divide-93': return 'مقسوم على 0.93';
-          case 'add-fixed': return `+${rate}`;
-          case 'subtract-fixed': return `-${rate}`;
-          case 'custom': return `${rate}% مخصص`;
-          default: return `${rate}%`;
+          case 'custom': return `+${displayRate}%`;
+          case 'extract-custom': return `-${displayRate}%`;
+          default: return `${displayRate}%`;
         }
       };
       return (
@@ -665,12 +739,9 @@
         let taxValue = 0;
         const { mode, rate } = settings;
         switch(mode) {
-            case 'add-7': taxValue = num * 0.07; break;
             case 'add-15': taxValue = num * 0.15; break;
-            case 'custom': taxValue = num * (rate / 100); break;
+            case 'custom': taxValue = num * (parseFloat(rate) / 100); break;
             case 'divide-93': taxValue = (num / 0.93) - num; break;
-            case 'add-fixed': return `+${rate}`;
-            case 'subtract-fixed': return `-${rate}`;
             default: return '';
         }
         return taxValue.toLocaleString('en-US', { maximumFractionDigits: 2, useGrouping: false });
@@ -740,38 +811,33 @@
       if (taxSettings.isEnabled && !isNaN(parseFloat(liveResult))) {
           const numResult = parseFloat(liveResult);
           let taxValue = 0;
-          let totalValue = 0;
+          let secondaryValue = 0;
+          let secondaryLabel = 'الإجمالي';
           const { mode, rate } = taxSettings;
+          const effectiveRate = parseFloat(rate) || 0;
 
           switch(mode) {
-              case 'add-7':
-                  taxValue = numResult * 0.07;
-                  totalValue = numResult + taxValue;
-                  break;
               case 'add-15':
                   taxValue = numResult * 0.15;
-                  totalValue = numResult + taxValue;
+                  secondaryValue = numResult + taxValue;
                   break;
               case 'custom':
-                  taxValue = numResult * (rate / 100);
-                  totalValue = numResult + taxValue;
+                  taxValue = numResult * (effectiveRate / 100);
+                  secondaryValue = numResult + taxValue;
+                  break;
+              case 'extract-custom':
+                  secondaryValue = numResult / (1 + (effectiveRate / 100));
+                  taxValue = numResult - secondaryValue;
+                  secondaryLabel = 'الأصل';
                   break;
               case 'divide-93':
-                  totalValue = numResult / 0.93;
-                  taxValue = totalValue - numResult;
-                  break;
-              case 'add-fixed':
-                  taxValue = rate;
-                  totalValue = numResult + taxValue;
-                  break;
-              case 'subtract-fixed':
-                  taxValue = -rate;
-                  totalValue = numResult + taxValue;
+                  secondaryValue = numResult / 0.93;
+                  taxValue = secondaryValue - numResult;
                   break;
           }
-          const taxLabel = (mode === 'add-fixed' || mode === 'subtract-fixed') ? 'المبلغ الثابت' : 'الضريبة';
+          const taxLabel = 'الضريبة';
           taxAmount = `${taxLabel}: ${taxValue.toLocaleString('en-US', {maximumFractionDigits: 2, useGrouping: false})}`;
-          totalWithTax = `الإجمالي: ${totalValue.toLocaleString('en-US', {maximumFractionDigits: 2, useGrouping: false})}`;
+          totalWithTax = `${secondaryLabel}: ${secondaryValue.toLocaleString('en-US', {maximumFractionDigits: 2, useGrouping: false})}`;
       }
 
       const displayBorderClass = error || aiSuggestion ? 'bg-gradient-to-r from-red-600 via-orange-500 to-red-600 shadow-[0_0_20px_rgba(255,61,0,0.7)]' : '';
@@ -827,12 +893,18 @@
             ),
             (aiSuggestion || error) && (
               React.createElement('div', { className: "absolute bottom-0 left-0 right-0 text-center text-sm text-[#ff3d00] bg-[rgba(255,61,0,0.15)] p-2 rounded-xl border border-[rgba(255,61,0,0.7)] z-10 flex justify-between items-center" },
-                  React.createElement('span', { className: "flex-grow text-right px-2" },
-                    aiSuggestion?.message || error?.message
-                  ),
-                  aiSuggestion?.fix && (
-                      React.createElement('button', { onClick: onApplyAiFix, className: "bg-none border-none text-sky-500 dark:text-[#4fc3f7] font-bold cursor-pointer mr-1 whitespace-nowrap" }, "[✨ تصحيح آلي]")
+                aiSuggestion?.isLoading ? (
+                  React.createElement('span', { className: "flex-grow text-right px-2 animate-pulse" }, 'جاري البحث عن حل ذكي...')
+                ) : (
+                  React.createElement(React.Fragment, null,
+                    React.createElement('span', { className: "flex-grow text-right px-2" },
+                      aiSuggestion?.message || error?.message
+                    ),
+                    aiSuggestion?.fix && (
+                        React.createElement('button', { onClick: onApplyAiFix, className: "bg-none border-none text-sky-500 dark:text-[#4fc3f7] font-bold cursor-pointer mr-1 whitespace-nowrap" }, "[✨ تصحيح آلي]")
+                    )
                   )
+                )
               )
             )
           )
@@ -975,32 +1047,29 @@
 
 
     // --- Inlined: components/SettingsPanel.tsx ---
+    const convertArabicNumerals = (str) => {
+        if (typeof str !== 'string' && typeof str !== 'number') return '';
+        return String(str)
+            .replace(/[٠١٢٣٤٥٦٧٨٩]/g, d => d.charCodeAt(0) - 1632)
+            .replace(/[۰۱۲۳۴۵۶۷۸۹]/g, d => d.charCodeAt(0) - 1776);
+    };
     const SettingsPanel = ({ isOpen, onClose, settings, theme, onThemeChange, fontFamily, setFontFamily, fontScale, setFontScale, buttonTextColor, setButtonTextColor, onOpenSupport, onShowAbout, onCheckForUpdates }) => {
       const { vibrationEnabled, setVibrationEnabled, taxSettings, setTaxSettings, maxHistory, setMaxHistory } = settings;
       
       const handleTaxChange = (e) => {
         const { name, value, type, checked } = e.target;
-        if (name === 'mode') {
-            const isSwitchingToFixed = ['add-fixed', 'subtract-fixed'].includes(value);
-            setTaxSettings(prev => ({
-                ...prev,
-                mode: value,
-                showTaxPerNumber: isSwitchingToFixed ? false : prev.showTaxPerNumber
-            }));
-        } else {
-            setTaxSettings(prev => ({
-                ...prev,
-                [name]: type === 'checkbox' ? checked : value
-            }));
-        }
+        setTaxSettings(prev => ({
+            ...prev,
+            [name]: type === 'checkbox' ? checked : value
+        }));
       };
       
       const handleTaxRateChange = (e) => {
-         const value = e.target.value;
-         setTaxSettings(prev => ({...prev, rate: parseFloat(value) || 0}));
+         const westernValue = convertArabicNumerals(e.target.value);
+         if (/^\d*\.?\d*$/.test(westernValue)) {
+            setTaxSettings(prev => ({...prev, rate: westernValue }));
+         }
       };
-
-      const isFixedMode = ['add-fixed', 'subtract-fixed'].includes(taxSettings.mode);
 
       return (
         React.createElement('div', { className: `fixed top-0 bottom-0 right-0 w-[320px] max-w-[85vw] bg-[var(--bg-panel)] text-[var(--text-primary)] z-50 p-5 shadow-2xl overflow-y-auto border-l-2 border-[var(--border-primary)] transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] transform ${isOpen ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 pointer-events-none'}` },
@@ -1048,23 +1117,29 @@
               "تفعيل حساب الضريبة"
             ),
             React.createElement('div', { className: `transition-opacity ${taxSettings.isEnabled ? 'opacity-100' : 'opacity-50 pointer-events-none'}`},
-                React.createElement('label', { className: `flex items-center mb-4 text-[var(--text-secondary)] ${isFixedMode ? 'opacity-50 pointer-events-none' : ''}` },
-                    React.createElement('input', { type: "checkbox", name: "showTaxPerNumber", checked: taxSettings.showTaxPerNumber, onChange: handleTaxChange, disabled: !taxSettings.isEnabled || isFixedMode, className: "ml-3 w-5 h-5 accent-[var(--accent-color)]" }),
+                React.createElement('label', { className: `flex items-center mb-4 text-[var(--text-secondary)]` },
+                    React.createElement('input', { type: "checkbox", name: "showTaxPerNumber", checked: taxSettings.showTaxPerNumber, onChange: handleTaxChange, disabled: !taxSettings.isEnabled, className: "ml-3 w-5 h-5 accent-[var(--accent-color)]" }),
                     "عرض الضريبة فوق كل رقم"
                 ),
                 React.createElement('select', { name: "mode", value: taxSettings.mode, onChange: handleTaxChange, className: "w-full p-2.5 rounded-xl border border-[var(--border-secondary)] bg-[var(--bg-inset)] text-[var(--text-primary)] mb-4 text-base" },
-                  React.createElement('option', { value: "add-7" }, "إضافة 7%"),
                   React.createElement('option', { value: "add-15" }, "إضافة 15%"),
+                  React.createElement('option', { value: "extract-custom" }, "استخلاص نسبة مخصصة"),
                   React.createElement('option', { value: "divide-93" }, "القسمة على 0.93"),
-                  React.createElement('option', { value: "custom" }, "نسبة مخصصة"),
-                  React.createElement('option', { value: "add-fixed" }, "إضافة مبلغ ثابت"),
-                  React.createElement('option', { value: "subtract-fixed" }, "خصم مبلغ ثابت")
+                  React.createElement('option', { value: "custom" }, "إضافة نسبة مخصصة")
                 ),
-                taxSettings.mode === 'custom' && (
-                  React.createElement('input', { type: "number", value: taxSettings.rate, onChange: handleTaxRateChange, placeholder: "أدخل نسبة مخصصة %", min: "0", step: "0.01", className: "w-full p-2.5 rounded-xl border border-[var(--border-secondary)] bg-[var(--bg-inset)] text-[var(--text-primary)] mb-4 text-base" })
-                ),
-                isFixedMode && (
-                    React.createElement('input', { type: "number", value: taxSettings.rate, onChange: handleTaxRateChange, placeholder: "أدخل المبلغ الثابت", min: "0", step: "0.01", className: "w-full p-2.5 rounded-xl border border-[var(--border-secondary)] bg-[var(--bg-inset)] text-[var(--text-primary)] mb-4 text-base" })
+                ['custom', 'extract-custom'].includes(taxSettings.mode) && (
+                  React.createElement('div', { className: "flex items-center justify-between mb-4 animate-fade-in-down" },
+                    React.createElement('label', { className: "text-[var(--text-secondary)]" }, "النسبة المئوية:"),
+                    React.createElement('input', { 
+                        type: "text", 
+                        inputMode: "decimal",
+                        value: taxSettings.rate, 
+                        onChange: handleTaxRateChange, 
+                        onBlur: () => setTaxSettings(prev => ({...prev, rate: parseFloat(prev.rate) || 0 })),
+                        placeholder: "%", 
+                        className: "w-24 p-2.5 rounded-xl border border-[var(--border-secondary)] bg-[var(--bg-inset)] text-[var(--text-primary)] text-base text-center direction-ltr" 
+                    })
+                  )
                 )
             )
           ),
@@ -1097,10 +1172,12 @@
 
 
     // --- Inlined: components/HistoryPanel.tsx ---
-    const HistoryPanel = ({ isOpen, onClose, history, onClearHistory, onHistoryItemClick, onExportHistory, onExportCsvHistory }) => {
+    const HistoryPanel = ({ isOpen, onClose, history, onClearHistory, onHistoryItemClick, onExportHistory, onExportCsvHistory, onUpdateHistoryItemNote }) => {
       const [startDate, setStartDate] = useState('');
       const [endDate, setEndDate] = useState('');
-      
+      const [searchTerm, setSearchTerm] = useState('');
+      const [editingItem, setEditingItem] = useState(null); // { id: number, note: string }
+
       const handleExport = (exportFunc) => {
         exportFunc(startDate, endDate);
       };
@@ -1110,45 +1187,78 @@
         setEndDate('');
       };
 
+      const handleEditSave = () => {
+        if (!editingItem) return;
+        onUpdateHistoryItemNote(editingItem.id, editingItem.note);
+        setEditingItem(null);
+      };
+
+      const filteredHistory = useMemo(() => {
+        return history.filter(item => {
+          if (!searchTerm) return true;
+          const searchLower = searchTerm.toLowerCase();
+          const expressionMatch = item.expression.toLowerCase().includes(searchLower);
+          const resultMatch = item.result.toLowerCase().includes(searchLower);
+          const notesMatch = item.notes && item.notes.toLowerCase().includes(searchLower);
+          return expressionMatch || resultMatch || notesMatch;
+        });
+      }, [history, searchTerm]);
+
       return (
         React.createElement('div', { className: `fixed top-0 bottom-0 left-0 w-[320px] max-w-[85vw] bg-[var(--bg-panel)] text-[var(--text-primary)] z-50 p-5 shadow-2xl overflow-y-auto border-r-2 border-[var(--border-primary)] transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] transform ${isOpen ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0 pointer-events-none'}` },
           React.createElement('div', { className: "flex justify-between items-center mb-4" },
             React.createElement('h3', { className: "text-[var(--accent-color)] text-2xl font-bold" }, `📜 السجل (${history.length})`),
             React.createElement('button', { onClick: onClose, className: "text-2xl text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors" }, "✕")
           ),
-          React.createElement('div', { className: "p-3 bg-[var(--bg-inset)] rounded-xl mb-4" },
-            React.createElement('h4', { className: "text-sm text-[var(--text-secondary)] font-semibold mb-2" }, "تصفية التصدير حسب التاريخ"),
-            React.createElement('div', { className: "flex gap-2 mb-2" },
-                React.createElement('div', { className: "flex-1" },
-                    React.createElement('label', { htmlFor: "start-date", className: "text-xs opacity-70" }, "من:"),
-                    React.createElement('input', { id: "start-date", type: "date", value: startDate, onChange: e => setStartDate(e.target.value), className: "w-full p-1.5 rounded-md border border-[var(--border-secondary)] bg-[var(--bg-inset-light)] text-sm" })
-                ),
-                React.createElement('div', { className: "flex-1" },
-                    React.createElement('label', { htmlFor: "end-date", className: "text-xs opacity-70" }, "إلى:"),
-                    React.createElement('input', { id: "end-date", type: "date", value: endDate, onChange: e => setEndDate(e.target.value), className: "w-full p-1.5 rounded-md border border-[var(--border-secondary)] bg-[var(--bg-inset-light)] text-sm" })
-                )
-            ),
-            React.createElement('button', { onClick: clearDates, className: "w-full text-center text-xs text-[var(--accent-color)] hover:underline" }, "مسح التحديد")
+          React.createElement('div', { className: "mb-4" },
+             React.createElement('input', { type: "search", placeholder: "ابحث في السجل...", value: searchTerm, onChange: (e) => setSearchTerm(e.target.value), className: "w-full p-2.5 rounded-xl border border-[var(--border-secondary)] bg-[var(--bg-inset)] text-[var(--text-primary)] text-base" })
           ),
           React.createElement('div', { className: "text-center mb-4 flex justify-center gap-2" },
-            React.createElement('button', { onClick: onClearHistory, className: "py-1 px-3 text-sm rounded-lg bg-[var(--bg-inset)] text-[var(--accent-color)] hover:brightness-95 transition-colors" }, "مسح السجل"),
-            React.createElement('button', { onClick: () => handleExport(onExportHistory), className: "py-1 px-3 text-sm rounded-lg bg-[var(--bg-inset)] text-sky-400 hover:brightness-95 transition-colors" }, "تصدير TXT"),
-            React.createElement('button', { onClick: () => handleExport(onExportCsvHistory), className: "py-1 px-3 text-sm rounded-lg bg-[var(--bg-inset)] text-green-400 hover:brightness-95 transition-colors" }, "تصدير CSV")
+            React.createElement('button', { onClick: onClearHistory, className: "py-1 px-3 text-sm rounded-lg bg-[var(--bg-inset)] text-[var(--accent-color)] hover:brightness-95 transition-colors" }, "مسح"),
+            React.createElement('button', { onClick: () => handleExport(onExportHistory), className: "py-1 px-3 text-sm rounded-lg bg-[var(--bg-inset)] text-sky-400 hover:brightness-95 transition-colors" }, "TXT"),
+            React.createElement('button', { onClick: () => handleExport(onExportCsvHistory), className: "py-1 px-3 text-sm rounded-lg bg-[var(--bg-inset)] text-green-400 hover:brightness-95 transition-colors" }, "CSV")
           ),
           React.createElement('div', { className: "flex flex-col gap-2" },
-            history.length === 0 ? (
-              React.createElement('p', { className: "text-center text-[var(--text-secondary)] text-base mt-8" }, "السجل فارغ.")
+            filteredHistory.length === 0 ? (
+              React.createElement('p', { className: "text-center text-[var(--text-secondary)] text-base mt-8" }, "لا توجد نتائج.")
             ) : (
-              history.map((item, index) => (
-                React.createElement('div', { key: index, onClick: () => onHistoryItemClick(item), className: "p-4 bg-[var(--bg-inset-light)] rounded-xl cursor-pointer transition-all duration-200 hover:bg-[var(--bg-inset)] hover:scale-[1.02]" },
-                  React.createElement('div', { className: "text-base opacity-80 direction-ltr text-left break-all text-[var(--text-secondary)]" }, item.expression, " ="),
-                  React.createElement('div', { className: "text-2xl font-bold direction-ltr text-left break-all" }, item.result),
-                  item.taxResult && (
-                    React.createElement('div', { className: "text-cyan-400 text-base mt-2" }, "الإجمالي مع الضريبة: ", item.taxResult)
-                  ),
-                   React.createElement('div', { className: "text-[var(--text-secondary)] opacity-70 text-xs mt-1" }, item.date, " - ", item.time)
+              filteredHistory.map((item) => {
+                const isEditing = editingItem && editingItem.id === item.id;
+                return (
+                  React.createElement('div', { key: item.id, className: "p-4 bg-[var(--bg-inset-light)] rounded-xl transition-all duration-200" },
+                    React.createElement('div', { onClick: () => !isEditing && onHistoryItemClick(item), className: "cursor-pointer" },
+                        React.createElement('div', { className: "text-base opacity-80 direction-ltr text-left break-all text-[var(--text-secondary)]" }, item.expression, " ="),
+                        React.createElement('div', { className: "text-2xl font-bold direction-ltr text-left break-all" }, item.result),
+                        item.taxResult && (
+                            React.createElement('div', { className: "text-cyan-400 text-base mt-2" }, `${item.taxLabel || 'الإجمالي مع الضريبة'}: `, item.taxResult)
+                        ),
+                        React.createElement('div', { className: "text-[var(--text-secondary)] opacity-70 text-xs mt-1" }, item.date, " - ", item.time)
+                    ),
+                    isEditing ? (
+                        React.createElement('div', { className: "mt-3 animate-fade-in-down" },
+                            React.createElement('textarea', {
+                                value: editingItem.note,
+                                onChange: (e) => setEditingItem(prev => ({...prev, note: e.target.value})),
+                                className: "w-full p-2 rounded-lg border border-[var(--border-secondary)] bg-[var(--bg-inset)] text-[var(--text-primary)] text-sm",
+                                placeholder: "أضف ملاحظة...",
+                                rows: 2
+                            }),
+                            React.createElement('div', { className: "flex gap-2 mt-2" },
+                                React.createElement('button', { onClick: handleEditSave, className: "flex-1 py-1 text-sm rounded-lg bg-green-500/80 text-white" }, "حفظ"),
+                                React.createElement('button', { onClick: () => setEditingItem(null), className: "flex-1 py-1 text-sm rounded-lg bg-[var(--bg-inset)]" }, "إلغاء")
+                            )
+                        )
+                    ) : (
+                        React.createElement('div', { className: "mt-2 flex justify-between items-start" },
+                            item.notes ?
+                                React.createElement('p', { className: "text-sm text-[var(--text-secondary)] italic pr-2 break-all" }, `"${item.notes}"`) :
+                                React.createElement('div', null),
+                            React.createElement('button', { onClick: () => setEditingItem({ id: item.id, note: item.notes || '' }), className: "text-xs text-[var(--accent-color)] hover:underline whitespace-nowrap" }, item.notes ? "تعديل" : "إضافة ملاحظة")
+                        )
+                    )
+                  )
                 )
-              ))
+              })
             )
           )
         )
@@ -1208,6 +1318,36 @@
     };
 
 
+    // --- Inlined: components/ConfirmationDialog.tsx ---
+    const ConfirmationDialog = ({ isOpen, onConfirm, onCancel, title, message }) => {
+      return React.createElement('div', {},
+        isOpen && React.createElement(React.Fragment, null,
+          React.createElement(Overlay, { show: isOpen, onClick: onCancel, zIndex: 'z-50' }),
+          React.createElement('div', {
+            className: `fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[340px] max-w-[90vw] bg-[var(--bg-panel)] text-[var(--text-primary)] z-[60] p-6 rounded-3xl shadow-2xl border border-[var(--border-primary)] transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] animate-bounce-in-up`,
+            role: "alertdialog",
+            "aria-modal": "true",
+            "aria-labelledby": "dialog-title",
+            "aria-describedby": "dialog-message"
+          },
+            React.createElement('h3', { id: "dialog-title", className: "text-[var(--accent-color)] text-2xl font-bold mb-4" }, title),
+            React.createElement('p', { id: "dialog-message", className: "text-[var(--text-secondary)] mb-6 text-base leading-relaxed" }, message),
+            React.createElement('div', { className: "flex justify-end gap-3" },
+              React.createElement('button', {
+                onClick: onCancel,
+                className: "py-2 px-6 rounded-xl bg-[var(--bg-inset)] text-[var(--text-secondary)] font-bold hover:brightness-95 transition-colors"
+              }, "إلغاء"),
+              React.createElement('button', {
+                onClick: onConfirm,
+                className: "py-2 px-6 rounded-xl bg-red-600 text-white font-bold shadow-lg hover:bg-red-700 transition-colors"
+              }, "تأكيد المسح")
+            )
+          )
+        )
+      );
+    };
+
+
     // --- Inlined: App.tsx ---
     function App() {
       const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -1216,6 +1356,7 @@
       const [isAboutOpen, setIsAboutOpen] = useState(false);
       const [notification, setNotification] = useState({ message: '', show: false });
       const [appUpdate, setAppUpdate] = useState({ available: false, registration: null });
+      const [confirmation, setConfirmation] = useState({ isOpen: false, onConfirm: null, onCancel: null, title: '', message: '' });
 
       const [theme, setTheme] = useLocalStorage('calcTheme_v3', 'system');
       const [fontFamily, setFontFamily] = useLocalStorage('calcFontFamily_v2', 'Tajawal');
@@ -1231,6 +1372,15 @@
       }, []);
       
       const calculator = useCalculator({ showNotification });
+
+      useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('history') === 'true') {
+            setIsHistoryOpen(true);
+            // Clean up the URL so it doesn't stay there on refresh
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      }, []);
       
       useEffect(() => {
         const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -1301,6 +1451,26 @@
         setIsAboutOpen(false);
       }, []);
 
+      const handleClearHistory = useCallback(() => {
+        if (calculator.history.length === 0) {
+            showNotification("السجل فارغ بالفعل.");
+            return;
+        }
+        setConfirmation({
+            isOpen: true,
+            title: 'مسح سجل العمليات',
+            message: 'هل أنت متأكد أنك تريد مسح السجل بالكامل؟ لا يمكن التراجع عن هذا الإجراء.',
+            onConfirm: () => {
+                calculator.actions.clearHistory();
+                setConfirmation({ isOpen: false });
+                showNotification("تم مسح السجل بنجاح.");
+            },
+            onCancel: () => {
+                setConfirmation({ isOpen: false });
+            }
+        });
+      }, [calculator.history, calculator.actions.clearHistory, showNotification]);
+
       const onCheckForUpdates = useCallback(() => {
         if (appUpdate.registration) {
             appUpdate.registration.update().then(reg => {
@@ -1329,12 +1499,10 @@
         const getTaxModeLabel = (mode, rate) => {
             if (!mode) return "غير مفعلة";
             switch (mode) {
-                case 'add-7': return "إضافة 7%";
                 case 'add-15': return "إضافة 15%";
                 case 'divide-93': return "القسمة على 0.93";
-                case 'custom': return `مخصص ${rate}%`;
-                case 'add-fixed': return `إضافة مبلغ ثابت ${rate}`;
-                case 'subtract-fixed': return `خصم مبلغ ثابت ${rate}`;
+                case 'custom': return `إضافة مخصص ${rate}%`;
+                case 'extract-custom': return `استخلاص مخصص ${rate}%`;
                 default: return "غير معروف";
             }
         };
@@ -1345,7 +1513,8 @@
                 `التاريخ: ${item.date} - ${item.time}\n` +
                 `العملية: ${item.expression}\n` +
                 `النتيجة: ${item.result}\n` +
-                (item.taxResult ? `وضع الضريبة: ${getTaxModeLabel(item.taxMode, item.taxRate)}\nالنتيجة مع الضريبة: ${item.taxResult}\n` : '') +
+                (item.taxResult ? `وضع الضريبة: ${getTaxModeLabel(item.taxMode, item.taxRate)}\n${item.taxLabel || 'النتيجة مع الضريبة'}: ${item.taxResult}\n` : '') +
+                (item.notes ? `ملاحظة: ${item.notes}\n` : '') +
                 "------------------------------------\n"
             ).join('\n');
             return header + content;
@@ -1353,10 +1522,10 @@
 
         if (format === 'csv') {
             const escapeCsvCell = (cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`;
-            const headers = ["التاريخ", "الوقت", "العملية", "النتيجة", "وضع الضريبة", "نسبة الضريبة", "النتيجة مع الضريبة"].map(escapeCsvCell).join(',');
+            const headers = ["التاريخ", "الوقت", "العملية", "النتيجة", "وضع الضريبة", "نسبة الضريبة", "النتيجة الثانوية (ضريبة/أصل)", "الملاحظات"].map(escapeCsvCell).join(',');
             const rows = history.map(item => [
                 item.date, item.time, item.expression, item.result,
-                getTaxModeLabel(item.taxMode, item.taxRate), item.taxRate, item.taxResult
+                getTaxModeLabel(item.taxMode, item.taxRate), item.taxRate, item.taxResult, item.notes
             ].map(escapeCsvCell).join(',')).join('\n');
             return `\uFEFF${headers}\n${rows}`;
         }
@@ -1443,16 +1612,24 @@
             isOpen: isHistoryOpen,
             onClose: closeAllPanels,
             history: calculator.history,
-            onClearHistory: calculator.actions.clearHistory,
+            onClearHistory: handleClearHistory,
             onHistoryItemClick: (item) => {
               calculator.actions.loadFromHistory(item.expression);
               closeAllPanels();
             },
             onExportHistory: (start, end) => handleExport('txt', start, end),
-            onExportCsvHistory: (start, end) => handleExport('csv', start, end)
+            onExportCsvHistory: (start, end) => handleExport('csv', start, end),
+            onUpdateHistoryItemNote: calculator.actions.updateHistoryItemNote
           }),
           React.createElement(SupportPanel, { isOpen: isSupportOpen, onClose: closeAllPanels }),
           React.createElement(AboutPanel, { isOpen: isAboutOpen, onClose: closeAllPanels }),
+          React.createElement(ConfirmationDialog, {
+            isOpen: confirmation.isOpen,
+            title: confirmation.title,
+            message: confirmation.message,
+            onConfirm: confirmation.onConfirm,
+            onCancel: confirmation.onCancel
+          }),
           React.createElement(Notification, { message: notification.message, show: notification.show })
         )
       );
@@ -1473,63 +1650,10 @@
   </script>
   
   <script>
-    // Inlined Service Worker Registration
+    // Register the Service Worker
     if ('serviceWorker' in navigator) {
-      const swCode = `
-        const CACHE_NAME = 'ai-calculator-cache-v9';
-
-        self.addEventListener('install', event => {
-          event.waitUntil(self.skipWaiting());
-        });
-
-        self.addEventListener('activate', event => {
-          const cacheWhitelist = [CACHE_NAME];
-          event.waitUntil(
-            caches.keys().then(cacheNames => {
-              return Promise.all(
-                cacheNames.map(cacheName => {
-                  if (cacheWhitelist.indexOf(cacheName) === -1) {
-                    return caches.delete(cacheName);
-                  }
-                })
-              );
-            }).then(() => self.clients.claim())
-          );
-        });
-
-        self.addEventListener('fetch', event => {
-          event.respondWith(
-            fetch(event.request)
-              .then(response => {
-                // Check if we received a valid response
-                if (!response || response.status !== 200 || response.type !== 'basic') {
-                  return response;
-                }
-                const responseToCache = response.clone();
-                caches.open(CACHE_NAME).then(cache => {
-                  cache.put(event.request, responseToCache);
-                });
-                return response;
-              })
-              .catch(() => {
-                return caches.match(event.request).then(response => {
-                   return response || new Response("You are offline", {"status": 503, "statusText": "Service Unavailable", "headers": new Headers({"Content-Type": "text/plain"})});
-                });
-              })
-          );
-        });
-
-        self.addEventListener('message', (event) => {
-            if (event.data && event.data.type === 'SKIP_WAITING') {
-                self.skipWaiting();
-            }
-        });
-      `;
-      const blob = new Blob([swCode], { type: 'application/javascript' });
-      const swUrl = URL.createObjectURL(blob);
-
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register(swUrl).then(registration => {
+        navigator.serviceWorker.register('./service-worker.js').then(registration => {
           console.log('ServiceWorker registration successful with scope: ', registration.scope);
         }, err => {
           console.log('ServiceWorker registration failed: ', err);
