@@ -1152,10 +1152,10 @@ Respond ONLY with a valid JSON object with two keys: "fix" (the corrected expres
               React.createElement('span', null, "الحد الأقصى للسجل:"),
               React.createElement('input', { type: "number", value: maxHistory, onChange: (e) => {
                   const val = parseInt(e.target.value, 10);
-                  if (val > 0 && val <= 100) {
+                  if (val > 0 && val <= 500) {
                     setMaxHistory(val);
                   }
-                }, min: "1", max: "100", className: "w-24 p-2 rounded-lg border border-[var(--border-secondary)] bg-[var(--bg-inset)] text-[var(--text-primary)] text-center"
+                }, min: "1", max: "500", className: "w-24 p-2 rounded-lg border border-[var(--border-secondary)] bg-[var(--bg-inset)] text-[var(--text-primary)] text-center"
               })
             ),
             React.createElement('label', { className: "flex items-center justify-between text-[var(--text-secondary)]" },
